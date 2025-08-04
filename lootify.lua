@@ -5,7 +5,7 @@ local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer
 
 local puxarAtivo = false
-local raioPuxar = 30 -- distância máxima para puxar NPCs perto do player
+local raioPuxar = 100 -- distância máxima para puxar NPCs perto do player
 
 -- Função para puxar e congelar NPCs perto do player
 local function puxarEcongelarNPCs()
