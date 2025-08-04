@@ -1,8 +1,17 @@
--- Dungeon Lootify – Auto Dungeon + Attack + Freeze + Loot + Teleport com Tween
+-- Dungeon Lootify – GUI + Auto Dungeon + KillAura + Freeze + Loot + Teleport
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local plr = Players.LocalPlayer
+local UIS = game:GetService("UserInputService")
 local function safe(p) return pcall(p) end
+
+-- Ativos
+local flags = {
+    autoRoom = true,
+    freeze = true,
+    killAura = true,
+    autoLoot = true
+}
 
 local function tweenTo(pos, duration)
     local char = plr.Character or plr.CharacterAdded:Wait()
@@ -15,8 +24,8 @@ local function tweenTo(pos, duration)
     end)
 end
 
--- Goto yellow door trigger
 local function goToNextRoom()
+    if not flags.autoRoom then return end
     safe(function()
         for _, v in pairs(workspace:GetDescendants()) do
             if v:IsA("BasePart") and (v.Name:lower():find("door") or v.BrickColor == BrickColor.new("Bright yellow")) then
@@ -28,8 +37,8 @@ local function goToNextRoom()
     end)
 end
 
--- Freeze NPCs
 local function freezeNPCs()
+    if not flags.freeze then return end
     safe(function()
         for _, npc in pairs(workspace:GetDescendants()) do
             if npc:IsA("Model") and npc:FindFirstChildOfClass("Humanoid") then
@@ -45,31 +54,39 @@ local function freezeNPCs()
     end)
 end
 
--- Attack mobs com hitbox estendida
-local function attackMobs()
-    safe(function()
-        local char = plr.Character or plr.CharacterAdded:Wait()
-        local hrp = char:WaitForChild("HumanoidRootPart")
-        local tool = char:FindFirstChildOfClass("Tool")
-        while task.wait(0.4) do
-            for _, v in pairs(workspace:GetDescendants()) do
-                if v:IsA("Humanoid") and v.Health > 0 and v.Parent ~= char then
-                    local root = v.Parent:FindFirstChild("HumanoidRootPart")
-                    if root and (root.Position - hrp.Position).Magnitude < 30 then
-                        tweenTo(root.Position + Vector3.new(0, -2.5, 0), 0.7)
-                        task.wait(0.2)
-                        if tool then tool:Activate()
-                        else mouse1click() end
-                        task.wait(0.6)
+-- Kill Aura
+task.spawn(function()
+    while true do
+        task.wait(0.2)
+        if not flags.killAura then continue end
+        safe(function()
+            local char = plr.Character or plr.CharacterAdded:Wait()
+            local hrp = char:WaitForChild("HumanoidRootPart")
+            local tool = char:FindFirstChildOfClass("Tool")
+            for _, npc in pairs(workspace:GetDescendants()) do
+                if npc:IsA("Model") and npc:FindFirstChildOfClass("Humanoid") and npc ~= char then
+                    local hum = npc:FindFirstChildOfClass("Humanoid")
+                    local root = npc:FindFirstChild("HumanoidRootPart")
+                    if hum and root and hum.Health > 0 then
+                        local dist = (root.Position - hrp.Position).Magnitude
+                        if dist < 30 then
+                            tweenTo(root.Position + Vector3.new(0, -2.5, 0), 0.5)
+                            task.wait(0.1)
+                            if tool then tool:Activate()
+                            else mouse1click() end
+                            local timeout = os.clock() + 3
+                            repeat task.wait(0.1)
+                            until hum.Health <= 0 or os.clock() > timeout
+                        end
                     end
                 end
             end
-        end
-    end)
-end
+        end)
+    end
+end)
 
--- Coleta baús
 local function openChests()
+    if not flags.autoLoot then return end
     safe(function()
         local hrp = plr.Character:WaitForChild("HumanoidRootPart")
         for _, v in pairs(workspace:GetDescendants()) do
@@ -86,16 +103,48 @@ local function openChests()
     end)
 end
 
--- Ciclo principal
+-- GUI
+safe(function()
+    local ScreenGui = Instance.new("ScreenGui", plr:WaitForChild("PlayerGui"))
+    ScreenGui.Name = "LootifyGui"
+    local frame = Instance.new("Frame", ScreenGui)
+    frame.Size = UDim2.new(0, 160, 0, 170)
+    frame.Position = UDim2.new(0, 10, 0.4, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    frame.BorderSizePixel = 0
+    frame.Active = true
+    frame.Draggable = true
+
+    local function makeToggle(name, flagName, yPos)
+        local btn = Instance.new("TextButton", frame)
+        btn.Size = UDim2.new(1, 0, 0, 30)
+        btn.Position = UDim2.new(0, 0, 0, yPos)
+        btn.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.Font = Enum.Font.SourceSansBold
+        btn.TextSize = 16
+        btn.Text = name .. ": ON"
+
+        btn.MouseButton1Click:Connect(function()
+            flags[flagName] = not flags[flagName]
+            btn.Text = name .. ": " .. (flags[flagName] and "ON" or "OFF")
+        end)
+    end
+
+    makeToggle("Auto Room", "autoRoom", 10)
+    makeToggle("Freeze NPCs", "freeze", 45)
+    makeToggle("Kill Aura", "killAura", 80)
+    makeToggle("Auto Loot", "autoLoot", 115)
+end)
+
+-- Loop principal
 task.spawn(function()
     while true do
-        goToNextRoom()
+        if flags.autoRoom then goToNextRoom() end
         task.wait(2)
-        freezeNPCs()
-        task.wait(1)
-        task.spawn(attackMobs)
-        task.wait(3)
-        openChests()
+        if flags.freeze then freezeNPCs() end
+        task.wait(2)
+        if flags.autoLoot then openChests() end
         task.wait(5)
     end
 end)
